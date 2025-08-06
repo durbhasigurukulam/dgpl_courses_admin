@@ -1,0 +1,75 @@
+name: CI/CD for Next.js (TypeScript) - Contabo via SCP & SSH
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⏬ Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧪 Ensure `tar` is installed
+        run: sudo apt-get update && sudo apt-get install -y tar
+
+      - name: 🗜️ Create tar.gz archive
+        run: |
+          tar --exclude='.git' --exclude='.github' --exclude='node_modules' --ignore-failed-read --warning=no-file-changed -czf nextjs-app.tar.gz .
+
+      - name: 🧹 Clean target dir on server before upload
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: ${{ secrets.CONTABO_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.CONTABO_PORT }}
+          script: |
+            echo "🔥 Deleting everything in ${{ secrets.APP_DIR }}..."
+            rm -rf ${{ secrets.APP_DIR }}/*
+
+      - name: 📤 SCP upload tar.gz to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: ${{ secrets.CONTABO_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.CONTABO_PORT }}
+          source: "nextjs-app.tar.gz"
+          target: "${{ secrets.APP_DIR }}"
+
+      - name: 🚀 Remote unpack and deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: ${{ secrets.CONTABO_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.CONTABO_PORT }}
+          script: |
+            cd ${{ secrets.APP_DIR }}
+
+            echo "📦 Extracting tarball..."
+            tar xzf nextjs-app.tar.gz
+            
+            echo "ping"
+            echo "${{ secrets.ENV }}" | base64 -d > ${{ secrets.ENV_FILE }}
+
+            echo "📥 Installing dependencies..."
+            npm install
+
+            echo "⚙️ Building project..."
+            npm run build
+
+            echo "🚀 Starting PM2 process..."
+            if pm2 list | grep -q "${{ secrets.PM2_APP_NAME }}"; then
+              echo "♻️ Restarting existing PM2 process..."
+              pm2 restart "${{ secrets.PM2_APP_NAME }}"
+            else
+              echo "🚀 Starting new PM2 process..."
+              pm2 start npm --name "${{ secrets.PM2_APP_NAME }}" -- start
+            fi
+
+
+            echo "✅ Deployment done."
