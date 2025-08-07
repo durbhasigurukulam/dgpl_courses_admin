@@ -8,7 +8,7 @@ import { getApiUrl } from "@/lib/api-utils";
 
 export async function uploadFile(formData: FormData) {
     try {
-        const res = await fetch(getApiUrl('/api/files'), {
+        const res = await authenticatedFetch(getApiUrl('/api/files'), {
             method: 'POST',
             body: formData,
         });
@@ -33,7 +33,7 @@ export async function uploadFile(formData: FormData) {
 export async function updateFile(fileData: FileData) {
     try {
         const { id, ...dataToUpdate } = fileData;
-        const res = await fetch(getApiUrl(`/api/files/${id}`), {
+        const res = await authenticatedFetch(getApiUrl(`/api/files/${id}`), {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -58,7 +58,7 @@ export async function updateFile(fileData: FileData) {
 
 export async function deleteFile(fileId: string) {
     try {
-        const res = await fetch(getApiUrl(`/api/files/${fileId}`), {
+        const res = await authenticatedFetch(getApiUrl(`/api/files/${fileId}`), {
             method: 'DELETE',
         });
 
