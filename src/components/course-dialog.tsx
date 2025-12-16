@@ -25,6 +25,7 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Course } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
+import { UploadDragDrop } from "./upload-drag-drop";
 
 interface CourseDialogProps {
   isOpen: boolean;
@@ -67,7 +68,13 @@ export function CourseDialog({
   useEffect(() => {
     if (isOpen) {
       if (course) {
-        setFormData(course);
+        // Make sure to properly set all fields including image and syllabusDownloadLink
+        setFormData({
+          ...emptyCourseTemplate,
+          ...course,
+          // Ensure we're properly handling potentially undefined syllabusDownloadLink
+          syllabusDownloadLink: course.syllabusDownloadLink || '',
+        });
       } else {
         setFormData(emptyCourseTemplate);
       }
@@ -106,7 +113,7 @@ export function CourseDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-4xl max-w-full w-[90vw]">
         <DialogHeader>
           <DialogTitle>{course ? "Edit Course" : "Add New Course"}</DialogTitle>
           <DialogDescription>
@@ -115,8 +122,8 @@ export function CourseDialog({
               : "Enter the new course details."}
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-[70vh] p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+        <div className="max-h-[70vh] overflow-y-auto overflow-x-auto p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4 min-w-full" style={{ minWidth: '600px' }}>
             <div className="grid gap-2">
               <Label htmlFor="title">Title</Label>
               <Input
@@ -213,11 +220,12 @@ export function CourseDialog({
               />
             </div>
              <div className="grid gap-2">
-                <Label htmlFor="image">Image URL</Label>
-                <Input
-                  id="image"
-                  value={formData.image}
-                  onChange={(e) => handleChange("image", e.target.value)}
+                <UploadDragDrop
+                  label="Course Image"
+                  type="image"
+                  acceptedTypes="image/*"
+                  currentValue={formData.image}
+                  onFileUpload={(url) => handleChange("image", url)}
                 />
               </div>
             <div className="md:col-span-2 grid gap-2">
@@ -237,11 +245,12 @@ export function CourseDialog({
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="syllabusDownloadLink">Syllabus Link</Label>
-                <Input
-                  id="syllabusDownloadLink"
-                  value={formData.syllabusDownloadLink || ''}
-                  onChange={(e) => handleChange("syllabusDownloadLink", e.target.value)}
+                <UploadDragDrop
+                  label="Syllabus File"
+                  type="file"
+                  acceptedTypes=".pdf,.doc,.docx"
+                  currentValue={formData.syllabusDownloadLink || ''}
+                  onFileUpload={(url) => handleChange("syllabusDownloadLink", url)}
                 />
               </div>
             <div className="grid gap-2">
@@ -286,7 +295,7 @@ export function CourseDialog({
               <Label htmlFor="isFeatured">Featured Course</Label>
             </div>
           </div>
-        </ScrollArea>
+        </div>
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>

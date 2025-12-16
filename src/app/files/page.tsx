@@ -3,11 +3,12 @@
 import FilesClient from "./files-client";
 import type { FileData, APIFile } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/api";
+import { getApiUrl } from "@/lib/api-utils";
 
 async function getFiles(): Promise<FileData[]> {
     try {
         console.log("🔍 Attempting to fetch files...");
-        const res = await authenticatedFetch("https://api.courses.durbhasigurukulam.com/api/files", {
+        const res = await authenticatedFetch(getApiUrl('/api/files'), {
             cache: "no-store",
         });
 
