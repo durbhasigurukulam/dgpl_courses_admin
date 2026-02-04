@@ -1,75 +1,63 @@
-name: CI/CD for Next.js (TypeScript) - Contabo via SCP & SSH
+name: Deploy ENV to Server
 
 on:
+  workflow_dispatch:  # Manual trigger
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
-  build-and-deploy:
+  deploy-env:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: ⏬ Checkout repository
-        uses: actions/checkout@v4
-
-      - name: 🧪 Ensure `tar` is installed
-        run: sudo apt-get update && sudo apt-get install -y tar
-
-      - name: 🗜️ Create tar.gz archive
+      - name: Setup SSH Key
         run: |
-          tar --exclude='.git' --exclude='.github' --exclude='node_modules' --ignore-failed-read --warning=no-file-changed -czf nextjs-app.tar.gz .
-
-      - name: 🧹 Clean target dir on server before upload
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: ${{ secrets.CONTABO_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.CONTABO_PORT }}
-          script: |
-            echo "🔥 Deleting everything in ${{ secrets.APP_DIR }}..."
-            rm -rf ${{ secrets.APP_DIR }}/*
-
-      - name: 📤 SCP upload tar.gz to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: ${{ secrets.CONTABO_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.CONTABO_PORT }}
-          source: "nextjs-app.tar.gz"
-          target: "${{ secrets.APP_DIR }}"
-
-      - name: 🚀 Remote unpack and deploy
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: ${{ secrets.CONTABO_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.CONTABO_PORT }}
-          script: |
-            cd ${{ secrets.APP_DIR }}
-
-            echo "📦 Extracting tarball..."
-            tar xzf nextjs-app.tar.gz
+          mkdir -p ~/.ssh
+          # Write the private key and ensure proper formatting
+          echo "${{ secrets.SERVER_PRIVATE_KEY_MAIN }}" > private.key
+          # Remove any carriage returns and ensure proper line endings
+          sed -i 's/\r$//' private.key
+          chmod 600 private.key
+          ssh-keyscan -H ${{ secrets.SERVER_HOST_MAIN }} >> ~/.ssh/known_hosts
+      
+      - name: Validate SSH Key
+        run: |
+          echo "Checking key format..."
+          head -n 1 private.key
+          tail -n 1 private.key
+          ssh-keygen -l -f private.key || echo "Key validation failed"
+      
+      - name: Create .env file on server
+        run: |
+          ssh -i private.key -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER_MAIN }}@${{ secrets.SERVER_HOST_MAIN }} << 'EOF'
+            # Create directory if it doesn't exist
+            mkdir -p /home/devops_bot_02/temp
             
-            echo "ping"
-            echo "${{ secrets.ENV }}" | base64 -d > ${{ secrets.ENV_FILE }}
-
-            echo "📥 Installing dependencies..."
-            npm install
-
-            echo "⚙️ Building project..."
-            npm run build
-
-            echo "🚀 Starting PM2 process..."
-            if pm2 list | grep -q "${{ secrets.PM2_APP_NAME }}"; then
-              echo "♻️ Restarting existing PM2 process..."
-              pm2 restart "${{ secrets.PM2_APP_NAME }}"
+            # Create .env file with content from ENV secret
+            cat > /home/devops_bot_02/temp/.env << 'ENVEOF'
+          ${{ secrets.ENV }}
+          ENVEOF
+            
+            # Set appropriate permissions
+            chmod 600 /home/devops_bot_02/temp/.env
+            
+            echo "✅ .env file created successfully at /home/devops_bot_02/temp/.env"
+          EOF
+      
+      - name: Verify deployment
+        run: |
+          ssh -i private.key -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER_MAIN }}@${{ secrets.SERVER_HOST_MAIN }} << 'EOF'
+            if [ -f /home/devops_bot_02/temp/.env ]; then
+              echo "✅ File exists"
+              echo "File size: $(stat -c%s /home/devops_bot_02/temp/.env 2>/dev/null || stat -f%z /home/devops_bot_02/temp/.env)"
             else
-              echo "🚀 Starting new PM2 process..."
-              pm2 start npm --name "${{ secrets.PM2_APP_NAME }}" -- start
+              echo "❌ File not found"
+              exit 1
             fi
-
-
-            echo "✅ Deployment done."
+          EOF
+      
+      - name: Cleanup SSH Key
+        if: always()
+        run: |
+          rm -f private.key
