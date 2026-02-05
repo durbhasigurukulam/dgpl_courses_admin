@@ -76,3 +76,28 @@ export async function deleteFile(fileId: string) {
         return { success: false, message: error.message || "An unknown error occurred" };
     }
 }
+
+export async function renameFile(fileId: string, newFilename: string) {
+    try {
+        const res = await authenticatedFetch(getApiUrl(`/api/files/${fileId}/rename`), {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ filename: newFilename }),
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || 'Failed to rename file');
+        }
+
+        const renamedFile = await res.json();
+        revalidatePath('/files');
+        return { success: true, data: renamedFile.data };
+
+    } catch (error: any) {
+        console.error("Error renaming file:", error);
+        return { success: false, message: error.message || "An unknown error occurred" };
+    }
+}

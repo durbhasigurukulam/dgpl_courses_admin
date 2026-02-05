@@ -93,3 +93,31 @@ export interface APIFile {
     createdAt: string;
     downloadCount: number;
 }
+
+export interface CourseRequest {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  courseName: string;
+  courseDescription?: string;
+  status: 'pending' | 'reviewing' | 'approved' | 'rejected';
+  priority: 'low' | 'medium' | 'high';
+  adminNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface APICourseRequest {
+  _id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  courseName: string;
+  courseDescription?: string;
+  status: 'pending' | 'reviewing' | 'approved' | 'rejected';
+  priority: 'low' | 'medium' | 'high';
+  adminNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}

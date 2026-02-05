@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  dgpl_courses_admin:
+    image: dgpl_courses_admin:latest
+    container_name: dgpl_courses_admin
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5009:5009"
+    environment:
+      - NODE_ENV=production
+      - PORT=5009
+      # Add your environment variables here
+      # - DATABASE_URL=${DATABASE_URL}
+      # - FIREBASE_CONFIG=${FIREBASE_CONFIG}
+    restart: unless-stopped
+    # Uncomment if you need to mount volumes
+    # volumes:
+    #   - ./data:/app/data

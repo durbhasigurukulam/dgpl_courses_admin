@@ -19,6 +19,7 @@ import {
   FolderKanban,
   Sparkles,
   LogOut,
+  ListOrdered,
 } from "lucide-react";
 import { logoutUser } from "@/app/login/actions";
 
@@ -27,6 +28,7 @@ const menuItems = [
   { href: "/courses", label: "Courses", icon: BookOpen },
   { href: "/testimonials", label: "Testimonials", icon: MessageCircle },
   { href: "/files", label: "Files", icon: FolderKanban },
+  { href: "/course-requests", label: "Course Requests", icon: ListOrdered },
   { href: "/smart-tagging", label: "Smart Tagging", icon: Sparkles },
 ];
 

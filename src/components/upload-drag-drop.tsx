@@ -80,10 +80,42 @@ export function UploadDragDrop({
         return;
       }
 
+      // Prompt user for custom filename before upload
+      const defaultName = file.name.substring(0, file.name.lastIndexOf('.'));
+      const customFilename = prompt(
+        `Enter a name for your ${type} (without extension):\n\nCurrent: ${file.name}\n\nNote: Alphanumeric characters, dots, hyphens only.`,
+        defaultName
+      );
+
+      if (customFilename === null) {
+        // User cancelled the upload
+        toast({
+          title: "Upload Cancelled",
+          description: "File upload was cancelled by user.",
+          variant: "default",
+        });
+        reject(new Error("Upload cancelled by user"));
+        return;
+      }
+
+      if (customFilename === "") {
+        toast({
+          title: "Invalid Filename",
+          description: "Filename cannot be empty. Using default name.",
+          variant: "destructive",
+        });
+        // We'll continue with the original filename
+      }
+
       const formData = new FormData();
       formData.append("file", file);
       formData.append("category", type === "image" ? "course_images" : "syllabus");
       formData.append("description", type === "image" ? "Course Image" : "Syllabus File");
+
+      // Add the custom filename to the form data
+      if (customFilename && customFilename.trim() !== "") {
+        formData.append("filename", customFilename);
+      }
 
       setIsUploading(true);
       setUploadProgress(0);
