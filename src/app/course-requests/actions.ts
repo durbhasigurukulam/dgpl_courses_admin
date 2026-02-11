@@ -1,6 +1,7 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
+// "use server"; // Not used in static export
+
+// import { revalidatePath } from "next/cache"; // Not available in static export
 import { authenticatedFetch } from "@/lib/api";
 import { getApiUrl } from "@/lib/api-utils";
 import type { CourseRequest } from "@/lib/types";
@@ -8,7 +9,7 @@ import type { CourseRequest } from "@/lib/types";
 export async function updateCourseRequest(courseRequest: CourseRequest) {
     try {
         const { id, name, email, phone, courseName, courseDescription, createdAt, updatedAt, ...updateData } = courseRequest;
-        
+
         const res = await authenticatedFetch(getApiUrl(`/api/course-requests/${id}`), {
             method: 'PUT',
             headers: {
@@ -26,7 +27,7 @@ export async function updateCourseRequest(courseRequest: CourseRequest) {
             };
         }
 
-        revalidatePath('/course-requests');
+        // revalidatePath('/course-requests');
         return { success: true, message: 'Course request updated successfully' };
     } catch (error) {
         console.error('Error updating course request:', error);
@@ -52,7 +53,7 @@ export async function deleteCourseRequest(id: string) {
             };
         }
 
-        revalidatePath('/course-requests');
+        // revalidatePath('/course-requests');
         return { success: true, message: 'Course request deleted successfully' };
     } catch (error) {
         console.error('Error deleting course request:', error);

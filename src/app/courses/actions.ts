@@ -1,8 +1,6 @@
 
-'use server';
-
 import type { Course } from "@/lib/types";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Not available in static export
 import { authenticatedFetch } from "@/lib/api";
 import { getApiUrl } from "@/lib/api-utils";
 
@@ -22,7 +20,7 @@ export async function addCourse(courseData: Omit<Course, 'id'>) {
         }
 
         const newCourse = await res.json();
-        revalidatePath('/courses');
+        // revalidatePath('/courses');
         return { success: true, data: newCourse.data };
 
     } catch (error: any) {
@@ -48,8 +46,8 @@ export async function updateCourse(courseData: Course) {
         }
 
         const updatedCourse = await res.json();
-        revalidatePath('/courses');
-        revalidatePath('/dashboard');
+        // revalidatePath('/courses');
+        // revalidatePath('/dashboard');
         return { success: true, data: updatedCourse.data };
 
     } catch (error: any) {
@@ -69,8 +67,8 @@ export async function deleteCourse(courseId: string) {
             throw new Error(errorData.message || 'Failed to delete course');
         }
 
-        revalidatePath('/courses');
-        revalidatePath('/dashboard');
+        // revalidatePath('/courses');
+        // revalidatePath('/dashboard');
         return { success: true };
 
     } catch (error: any) {

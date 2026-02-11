@@ -1,7 +1,6 @@
-'use server';
 
 import type { Testimonial } from "@/lib/types";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Not available in static export
 import { authenticatedFetch } from "@/lib/api";
 import { getApiUrl } from "@/lib/api-utils";
 
@@ -21,8 +20,8 @@ export async function addTestimonial(testimonialData: Omit<Testimonial, 'id'>) {
         }
 
         const newTestimonial = await res.json();
-        revalidatePath('/testimonials');
-        revalidatePath('/dashboard');
+        // revalidatePath('/testimonials');
+        // revalidatePath('/dashboard');
         return { success: true, data: newTestimonial.data };
 
     } catch (error: any) {
@@ -48,8 +47,8 @@ export async function updateTestimonial(testimonialData: Testimonial) {
         }
 
         const updatedTestimonial = await res.json();
-        revalidatePath('/testimonials');
-        revalidatePath('/dashboard');
+        // revalidatePath('/testimonials');
+        // revalidatePath('/dashboard');
         return { success: true, data: updatedTestimonial.data };
 
     } catch (error: any) {
@@ -69,8 +68,8 @@ export async function deleteTestimonial(testimonialId: string) {
             throw new Error(errorData.message || 'Failed to delete testimonial');
         }
 
-        revalidatePath('/testimonials');
-        revalidatePath('/dashboard');
+        // revalidatePath('/testimonials');
+        // revalidatePath('/dashboard');
         return { success: true };
 
     } catch (error: any) {

@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles } from "lucide-react";
-import { suggestCourseTags } from "@/ai/flows/suggest-tags-for-courses";
+import { suggestTagsForCourse } from "@/ai/flows/suggest-tags-for-courses";
 import { suggestTagsForTestimonial } from "@/ai/flows/suggest-tags-for-testimonials";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,8 +31,8 @@ export default function SmartTaggingClient() {
     setIsCourseLoading(true);
     setCourseTags([]);
     try {
-      const result = await suggestCourseTags({ description: courseText });
-      setCourseTags(result.tags);
+      const result = await suggestTagsForCourse({ courseTitle: "Course", courseDescription: courseText });
+      setCourseTags(result.suggestedTags);
     } catch (error) {
       console.error("Error suggesting course tags:", error);
       toast({ title: "An error occurred", description: "Could not suggest tags for the course.", variant: "destructive" });
@@ -40,7 +40,7 @@ export default function SmartTaggingClient() {
       setIsCourseLoading(false);
     }
   };
-  
+
   const handleSuggestTestimonialTags = async () => {
     if (!testimonialText.trim()) {
       toast({ title: "Input required", description: "Please enter testimonial text.", variant: "destructive" });
@@ -94,7 +94,7 @@ export default function SmartTaggingClient() {
                 {isCourseLoading && (
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-1/4" />
-                     <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Skeleton className="h-6 w-20 rounded-full" />
                       <Skeleton className="h-6 w-24 rounded-full" />
                       <Skeleton className="h-6 w-16 rounded-full" />
@@ -129,7 +129,7 @@ export default function SmartTaggingClient() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                 <div className="grid w-full gap-2">
+                <div className="grid w-full gap-2">
                   <Label htmlFor="testimonial-text">Testimonial Text</Label>
                   <Textarea
                     id="testimonial-text"
@@ -140,17 +140,17 @@ export default function SmartTaggingClient() {
                     disabled={isTestimonialLoading}
                   />
                 </div>
-                 {isTestimonialLoading && (
+                {isTestimonialLoading && (
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-1/4" />
-                     <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Skeleton className="h-6 w-20 rounded-full" />
                       <Skeleton className="h-6 w-24 rounded-full" />
                       <Skeleton className="h-6 w-16 rounded-full" />
                     </div>
                   </div>
                 )}
-                {testimonialTags.length > 0 && !isTestimonialLoading &&(
+                {testimonialTags.length > 0 && !isTestimonialLoading && (
                   <div>
                     <h4 className="font-medium text-sm mb-2">Suggested Tags:</h4>
                     <div className="flex flex-wrap gap-2">

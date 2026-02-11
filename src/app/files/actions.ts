@@ -1,8 +1,6 @@
 
-'use server';
-
 import type { FileData } from "@/lib/types";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Not available in static export
 import { authenticatedFetch } from "@/lib/api";
 import { getApiUrl } from "@/lib/api-utils";
 
@@ -19,8 +17,8 @@ export async function uploadFile(formData: FormData) {
         }
 
         const newFile = await res.json();
-        revalidatePath('/files');
-        revalidatePath('/dashboard');
+        // revalidatePath('/files');
+        // revalidatePath('/dashboard');
         return { success: true, data: newFile.data };
 
     } catch (error: any) {
@@ -47,7 +45,7 @@ export async function updateFile(fileData: FileData) {
         }
 
         const updatedFile = await res.json();
-        revalidatePath('/files');
+        // revalidatePath('/files');
         return { success: true, data: updatedFile.data };
 
     } catch (error: any) {
@@ -67,8 +65,8 @@ export async function deleteFile(fileId: string) {
             throw new Error(errorData.message || 'Failed to delete file');
         }
 
-        revalidatePath('/files');
-        revalidatePath('/dashboard');
+        // revalidatePath('/files');
+        // revalidatePath('/dashboard');
         return { success: true };
 
     } catch (error: any) {
@@ -93,7 +91,7 @@ export async function renameFile(fileId: string, newFilename: string) {
         }
 
         const renamedFile = await res.json();
-        revalidatePath('/files');
+        // revalidatePath('/files');
         return { success: true, data: renamedFile.data };
 
     } catch (error: any) {

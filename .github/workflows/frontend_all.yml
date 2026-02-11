@@ -1,0 +1,370 @@
+name: Frontend Deploy to Nginx Container
+
+on:
+  push:
+    branches: [dev, staging, main, prod, new-test]
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    environment:
+      name: ${{ github.ref_name == 'prod' && 'PROD' || github.ref_name == 'main' && 'MAIN' || github.ref_name == 'staging' && 'STAGING' || 'DEV' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select env by branch
+        run: |
+          BRANCH="${GITHUB_REF##*/}"
+          if [ "$BRANCH" = "main" ]; then ENV_NAME=MAIN;
+          elif [ "$BRANCH" = "dev" ]; then ENV_NAME=DEV;
+          elif [ "$BRANCH" = "staging" ]; then ENV_NAME=STAGING;
+          elif [ "$BRANCH" = "prod" ]; then ENV_NAME=PROD;
+          else exit 1; fi
+          echo "ENV_NAME=$ENV_NAME" >> $GITHUB_ENV
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Create .env file
+        run: |
+          echo "${{ secrets[format('ENV_{0}', env.ENV_NAME)] }}" > .env
+          chmod 600 .env
+
+      - name: Build
+        env:
+          CI: false
+        run: |
+          npm run build
+          if grep -q '"export":' package.json; then
+            echo "Running export script..."
+            npm run export
+          fi
+
+      - name: Detect Build Directory
+        id: detect_build
+        run: |
+          BUILD_DIR="${{ secrets[format('BUILD_DIR_{0}', env.ENV_NAME)] }}"
+          
+          if [ -n "$BUILD_DIR" ]; then
+            echo "Using manually specified BUILD_DIR: $BUILD_DIR"
+          else
+            if [ -d "dist" ]; then BUILD_DIR="dist"
+            elif [ -d "build" ]; then BUILD_DIR="build"
+            elif [ -d "out" ]; then BUILD_DIR="out"
+            elif [ -d ".next/standalone" ]; then BUILD_DIR=".next/standalone"
+            elif [ -d ".output/public" ]; then BUILD_DIR=".output/public"
+            else
+              echo "❌ Could not detect build directory!"
+              ls -la
+              exit 1
+            fi
+          fi
+          
+          if [ ! -d "$BUILD_DIR" ]; then
+            echo "❌ Build directory does not exist: $BUILD_DIR"
+            exit 1
+          fi
+          
+          FILE_COUNT=$(find "$BUILD_DIR" -type f | wc -l)
+          if [ "$FILE_COUNT" -eq 0 ]; then
+            echo "❌ Build directory is empty: $BUILD_DIR"
+            exit 1
+          fi
+          
+          echo "✅ Build directory verified: $BUILD_DIR ($FILE_COUNT files)"
+          echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_OUTPUT
+
+      - name: Create archive
+        run: |
+          BUILD_DIR="${{ steps.detect_build.outputs.BUILD_DIR }}"
+          echo "Creating archive from: $BUILD_DIR"
+          tar -czf deploy.tar.gz -C "$BUILD_DIR" .
+          
+          SIZE=$(du -h deploy.tar.gz | cut -f1)
+          echo "✅ Archive created: $SIZE"
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets[format('SERVER_PRIVATE_KEY_{0}', env.ENV_NAME)] }}
+        run: |
+          mkdir -p ~/.ssh
+          
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "❌ Error: Secret SERVER_PRIVATE_KEY_${ENV_NAME} is not set."
+            exit 1
+          fi
+
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/key
+          chmod 600 ~/.ssh/key
+
+      - name: Upload to Server
+        env:
+          SERVER_USER: ${{ secrets[format('SERVER_USER_{0}', env.ENV_NAME)] }}
+          SERVER_HOST: ${{ secrets[format('SERVER_HOST_{0}', env.ENV_NAME)] }}
+        run: |
+          if [ -z "$SERVER_USER" ]; then
+            echo "❌ Error: Secret SERVER_USER_${ENV_NAME} is not set."
+            exit 1
+          fi
+          
+          if [ -z "$SERVER_HOST" ]; then
+            echo "❌ Error: Secret SERVER_HOST_${ENV_NAME} is not set."
+            exit 1
+          fi
+
+          scp -i ~/.ssh/key -o StrictHostKeyChecking=no deploy.tar.gz \
+          ${SERVER_USER}@${SERVER_HOST}:/tmp/deploy-${{ github.sha }}.tar.gz
+
+      - name: Deploy to Nginx Container
+        env:
+          SERVER_USER: ${{ secrets[format('SERVER_USER_{0}', env.ENV_NAME)] }}
+          SERVER_HOST: ${{ secrets[format('SERVER_HOST_{0}', env.ENV_NAME)] }}
+        run: |
+          ssh -i ~/.ssh/key -o StrictHostKeyChecking=no \
+          ${SERVER_USER}@${SERVER_HOST} "bash -s" << 'EOF'
+          set -e
+
+          # ==================== Configuration ====================
+          NGINX_CONTAINER="${{ secrets[format('NGINX_CONTAINER_{0}', env.ENV_NAME)] }}"
+          APP_DOMAIN="${{ secrets[format('APP_DOMAIN_{0}', env.ENV_NAME)] }}"
+          NGINX_HTML_PATH="${{ secrets[format('NGINX_HTML_PATH_{0}', env.ENV_NAME)] }}"
+          
+          ARCHIVE_PATH="/tmp/deploy-${{ github.sha }}.tar.gz"
+          DEPLOY_PATH="$NGINX_HTML_PATH/$APP_DOMAIN"
+          BACKUP_DIR="$NGINX_HTML_PATH/.backups/$APP_DOMAIN"
+          LOCK_FILE_HOST="/tmp/.deploy-${APP_DOMAIN}.lock"
+          DEPLOY_LOG_HOST="/tmp/deploy-${APP_DOMAIN}.log"
+          TEMP_DIR="/tmp/deploy-temp-${{ github.sha }}"
+          
+          DEPLOY_START=$(date +%s)
+
+          # ==================== Initialize ====================
+          mkdir -p "$TEMP_DIR"
+          touch "$DEPLOY_LOG_HOST"
+
+          # ==================== Logging ====================
+          log() {
+            echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1" | tee -a "$DEPLOY_LOG_HOST"
+          }
+
+          # ==================== Pre-flight Checks ====================
+          log "🔍 Pre-flight checks..."
+
+          # Validate required variables
+          for var in NGINX_CONTAINER APP_DOMAIN NGINX_HTML_PATH; do
+            if [ -z "${!var}" ]; then
+              log "❌ Missing required variable: $var"
+              exit 1
+            fi
+          done
+
+          # Check Docker is running
+          if ! docker info >/dev/null 2>&1; then
+            log "❌ Docker is not running or not accessible"
+            exit 1
+          fi
+
+          # Check nginx container exists and is running
+          if ! docker ps --filter "name=$NGINX_CONTAINER" --format "{{.Names}}" | grep -q "^${NGINX_CONTAINER}$"; then
+            log "❌ Nginx container not running: $NGINX_CONTAINER"
+            exit 1
+          fi
+
+          # Check archive exists
+          if [ ! -f "$ARCHIVE_PATH" ]; then
+            log "❌ Archive not found: $ARCHIVE_PATH"
+            exit 1
+          fi
+
+          # Deployment lock
+          if [ -f "$LOCK_FILE_HOST" ]; then
+            LOCK_AGE=$(($(date +%s) - $(stat -c %Y "$LOCK_FILE_HOST" 2>/dev/null || stat -f %m "$LOCK_FILE_HOST")))
+            if [ "$LOCK_AGE" -lt 600 ]; then
+              log "❌ Deployment already in progress (lock age: ${LOCK_AGE}s)"
+              exit 1
+            else
+              log "⚠️  Removing stale lock (age: ${LOCK_AGE}s)"
+              rm -f "$LOCK_FILE_HOST"
+            fi
+          fi
+
+          touch "$LOCK_FILE_HOST"
+          trap 'rm -f "$LOCK_FILE_HOST"' EXIT
+
+          # ==================== Helper Functions ====================
+          cleanup_on_failure() {
+            log "🧹 Cleaning up after failure..."
+            
+            # Restore from backup if it exists
+            LATEST_BACKUP=$(docker exec "$NGINX_CONTAINER" sh -c "ls -t $BACKUP_DIR/backup-*.tar.gz 2>/dev/null | head -1" || echo "")
+            if [ -n "$LATEST_BACKUP" ]; then
+              log "⚠️  Restoring from backup: $LATEST_BACKUP"
+              docker exec "$NGINX_CONTAINER" sh -c "
+                rm -rf $DEPLOY_PATH/*
+                tar -xzf $LATEST_BACKUP -C $DEPLOY_PATH
+              " 2>&1 | tee -a "$DEPLOY_LOG_HOST"
+              log "✅ Backup restored"
+            fi
+            
+            # Cleanup temp files
+            rm -rf "$TEMP_DIR"
+            rm -f "$ARCHIVE_PATH"
+            
+            log "❌ Deployment failed and cleaned up"
+          }
+
+          cleanup_on_success() {
+            log "🧹 Cleaning up after success..."
+            
+            # Keep only last 5 backups inside container
+            docker exec "$NGINX_CONTAINER" sh -c "
+              ls -t $BACKUP_DIR/backup-*.tar.gz 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null || true
+            "
+            
+            # Cleanup temp files
+            rm -rf "$TEMP_DIR"
+            rm -f "$ARCHIVE_PATH"
+            
+            log "✅ Deployment successful and cleaned up"
+          }
+
+          # ==================== Create directories in container ====================
+          log "📁 Preparing directories in nginx container..."
+          docker exec "$NGINX_CONTAINER" sh -c "
+            mkdir -p $DEPLOY_PATH
+            mkdir -p $BACKUP_DIR
+          "
+
+          # ==================== Backup Current Deployment ====================
+          log "💾 Creating backup inside container..."
+          BACKUP_EXISTS=$(docker exec "$NGINX_CONTAINER" sh -c "[ -d $DEPLOY_PATH ] && ls -A $DEPLOY_PATH 2>/dev/null && echo 'yes' || echo 'no'")
+          
+          if [ "$BACKUP_EXISTS" = "yes" ]; then
+            BACKUP_NAME="backup-$(date +%s).tar.gz"
+            docker exec "$NGINX_CONTAINER" sh -c "
+              cd $DEPLOY_PATH && tar -czf $BACKUP_DIR/$BACKUP_NAME . 2>/dev/null || true
+            " 2>&1 | tee -a "$DEPLOY_LOG_HOST"
+            
+            BACKUP_SIZE=$(docker exec "$NGINX_CONTAINER" sh -c "du -h $BACKUP_DIR/$BACKUP_NAME 2>/dev/null | cut -f1" || echo "unknown")
+            log "✅ Backup created: $BACKUP_SIZE"
+          else
+            log "ℹ️  No existing deployment to backup"
+          fi
+
+          # ==================== Copy & Extract in Container (Zero Downtime) ====================
+          log "📤 Copying archive to nginx container..."
+          
+          # Copy archive to /tmp inside container
+          if ! docker cp "$ARCHIVE_PATH" "$NGINX_CONTAINER:/tmp/deploy.tar.gz"; then
+            log "❌ Failed to copy archive to container"
+            cleanup_on_failure
+            exit 1
+          fi
+
+          log "📦 Extracting archive to temp location inside container..."
+          
+          # Create temp directory in container
+          TEMP_EXTRACT_DIR="/tmp/deploy_temp_$(date +%s)"
+          docker exec "$NGINX_CONTAINER" mkdir -p "$TEMP_EXTRACT_DIR"
+
+          # Extract to temp directory first (Slow part)
+          if ! docker exec "$NGINX_CONTAINER" tar -xzf /tmp/deploy.tar.gz -C "$TEMP_EXTRACT_DIR"; then
+             log "❌ Failed to extract archive inside container"
+             docker exec "$NGINX_CONTAINER" rm -rf "$TEMP_EXTRACT_DIR" /tmp/deploy.tar.gz
+             cleanup_on_failure
+             exit 1
+          fi
+
+          log "⚡ Swapping live files (Zero Downtime)..."
+          
+          # Clear deployment directory and move new files (Fast part)
+          docker exec "$NGINX_CONTAINER" sh -c "
+            rm -rf $DEPLOY_PATH/* && \
+            cp -r $TEMP_EXTRACT_DIR/. $DEPLOY_PATH/ && \
+            rm -rf $TEMP_EXTRACT_DIR
+          " 2>&1 | tee -a "$DEPLOY_LOG_HOST"
+
+          # Cleanup archive in container
+          docker exec "$NGINX_CONTAINER" rm -f /tmp/deploy.tar.gz
+
+          # ==================== Set Permissions in Container ====================
+          log "🔒 Setting permissions inside container..."
+          docker exec "$NGINX_CONTAINER" sh -c "
+            find $DEPLOY_PATH -type f -exec chmod 644 {} \; 2>/dev/null || true
+            find $DEPLOY_PATH -type d -exec chmod 755 {} \; 2>/dev/null || true
+          " 2>&1 | tee -a "$DEPLOY_LOG_HOST"
+
+          # ==================== Verify Deployment ====================
+          log "✅ Verifying deployment..."
+          
+          DEPLOYED_FILES=$(docker exec "$NGINX_CONTAINER" sh -c "find $DEPLOY_PATH -type f | wc -l")
+          DEPLOY_SIZE=$(docker exec "$NGINX_CONTAINER" sh -c "du -sh $DEPLOY_PATH | cut -f1")
+          
+          log "📊 Deployed: $DEPLOYED_FILES files, $DEPLOY_SIZE total"
+
+          # ==================== Update Nginx Config ====================
+          log "🔧 Checking nginx configuration..."
+          
+          # Test nginx config
+          if docker exec "$NGINX_CONTAINER" nginx -t 2>&1 | grep -q "successful"; then
+            log "✅ Nginx configuration test passed"
+            
+            # Reload nginx
+            if docker exec "$NGINX_CONTAINER" nginx -s reload 2>&1 | tee -a "$DEPLOY_LOG_HOST"; then
+              log "✅ Nginx reloaded successfully"
+            else
+              log "⚠️  Warning: Could not reload nginx"
+            fi
+          else
+            log "⚠️  Warning: Nginx configuration test failed"
+            docker exec "$NGINX_CONTAINER" nginx -t 2>&1 | tee -a "$DEPLOY_LOG_HOST"
+          fi
+
+          # ==================== Success Cleanup ====================
+          cleanup_on_success
+
+          # ==================== Deployment Summary ====================
+          DEPLOY_END=$(date +%s)
+          DEPLOY_DURATION=$((DEPLOY_END - DEPLOY_START))
+          
+          log "════════════════════════════════════════"
+          log "✅ Deployment completed successfully!"
+          log "Duration: ${DEPLOY_DURATION}s"
+          log "Container: $NGINX_CONTAINER"
+          log "Path: $DEPLOY_PATH"
+          log "Files: $DEPLOYED_FILES"
+          log "Size: $DEPLOY_SIZE"
+          log "Commit: ${{ github.sha }}"
+          log "════════════════════════════════════════"
+
+          # Show last 20 lines of log
+          echo ""
+          echo "Recent deployment log:"
+          tail -n 20 "$DEPLOY_LOG_HOST"
+
+          EOF
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/key
+
+      - name: Deployment Summary
+        if: success()
+        run: |
+          echo "### ✅ Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ env.ENV_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Directory:** ${{ steps.detect_build.outputs.BUILD_DIR }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Domain:** ${{ secrets[format('APP_DOMAIN_{0}', env.ENV_NAME)] }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Container:** ${{ secrets[format('NGINX_CONTAINER_{0}', env.ENV_NAME)] }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

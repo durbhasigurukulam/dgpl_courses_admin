@@ -3,8 +3,10 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/layout/sidebar";
-import { cookies } from "next/headers";
+import { SidebarWrapper } from "@/components/layout/sidebar-wrapper";
+
+import { Inter } from "next/font/google";
+import type { Metadata } from "next";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -13,14 +15,11 @@ export const metadata: Metadata = {
   description: "Admin dashboard for managing courses, testimonials, and files.",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  const isLoggedIn = cookieStore.has("user") && cookieStore.has("connect.sid");
-
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -34,10 +33,9 @@ export default async function RootLayout({
       <body className={`${inter.variable} font-body antialiased`}>
         <SidebarProvider>
           <div className="flex min-h-screen">
-            {isLoggedIn && <AppSidebar />}
-            <main className="flex-1">
-                {children}
-            </main>
+            <SidebarWrapper>
+              {children}
+            </SidebarWrapper>
           </div>
         </SidebarProvider>
         <Toaster />
