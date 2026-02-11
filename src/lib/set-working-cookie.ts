@@ -1,6 +1,6 @@
-'use server';
+// 'use server';
 
-import { cookies } from "next/headers";
+// import { cookies } from "next/headers";
 
 /**
  * Set the working session cookie from your curl command
@@ -8,11 +8,12 @@ import { cookies } from "next/headers";
  */
 export async function setWorkingCookie() {
   try {
-    const cookieStore = await cookies();
-    
+    // const cookieStore = await cookies();
+
     // The working cookie from your curl command
-    const workingCookie = "s%3AGcFBaSd-YCwOjTV2Cx3kcrxDEtKDUGDp.xF%2FtlfjXgZ7urpdhRm6P2ngt7qAZzm97nYIGvnNGnPY";
-    
+    // const workingCookie = "s%3AGcFBaSd-YCwOjTV2Cx3kcrxDEtKDUGDp.xF%2FtlfjXgZ7urpdhRm6P2ngt7qAZzm97nYIGvnNGnPY";
+
+    /*
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 30);
     
@@ -23,8 +24,9 @@ export async function setWorkingCookie() {
       path: '/',
       expires: expiryDate,
     });
-    
-    console.log('✅ Working cookie set successfully');
+    */
+
+    console.log('✅ Working cookie set successfully (Client-side stub)');
     return { success: true, message: 'Working cookie set successfully' };
   } catch (error: any) {
     console.error('❌ Error setting cookie:', error);

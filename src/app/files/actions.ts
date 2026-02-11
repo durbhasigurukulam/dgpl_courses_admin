@@ -1,8 +1,6 @@
 
-'use server';
-
 import type { FileData } from "@/lib/types";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Not available in static export
 import { authenticatedFetch } from "@/lib/api";
 import { getApiUrl } from "@/lib/api-utils";
 
@@ -19,8 +17,8 @@ export async function uploadFile(formData: FormData) {
         }
 
         const newFile = await res.json();
-        revalidatePath('/files');
-        revalidatePath('/dashboard');
+        // revalidatePath('/files');
+        // revalidatePath('/dashboard');
         return { success: true, data: newFile.data };
 
     } catch (error: any) {
@@ -47,7 +45,7 @@ export async function updateFile(fileData: FileData) {
         }
 
         const updatedFile = await res.json();
-        revalidatePath('/files');
+        // revalidatePath('/files');
         return { success: true, data: updatedFile.data };
 
     } catch (error: any) {
@@ -67,12 +65,37 @@ export async function deleteFile(fileId: string) {
             throw new Error(errorData.message || 'Failed to delete file');
         }
 
-        revalidatePath('/files');
-        revalidatePath('/dashboard');
+        // revalidatePath('/files');
+        // revalidatePath('/dashboard');
         return { success: true };
 
     } catch (error: any) {
         console.error("Error deleting file:", error);
+        return { success: false, message: error.message || "An unknown error occurred" };
+    }
+}
+
+export async function renameFile(fileId: string, newFilename: string) {
+    try {
+        const res = await authenticatedFetch(getApiUrl(`/api/files/${fileId}/rename`), {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ filename: newFilename }),
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || 'Failed to rename file');
+        }
+
+        const renamedFile = await res.json();
+        // revalidatePath('/files');
+        return { success: true, data: renamedFile.data };
+
+    } catch (error: any) {
+        console.error("Error renaming file:", error);
         return { success: false, message: error.message || "An unknown error occurred" };
     }
 }
