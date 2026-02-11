@@ -2,7 +2,7 @@ name: Frontend Deploy to Nginx Container
 
 on:
   push:
-    branches: [dev, staging, main, prod, new-test]
+    branches: [dev, staging, main, prod]
 
 jobs:
   build_and_deploy:
