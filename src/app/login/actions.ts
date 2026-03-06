@@ -1,9 +1,8 @@
-
 // 'use server'; // Not used in static export
 
 // import { cookies } from "next/headers"; // Not available in static export
 import { getApiUrl } from "@/lib/api-utils";
-import { clearAuthCookies } from "@/app/actions/auth";
+import { clearAuthCookies, setAuthCookie } from "@/app/actions/auth";
 
 interface LoginCredentials {
   email: string;
@@ -33,6 +32,11 @@ export async function loginUser(credentials: LoginCredentials) {
     // The client-side code calling this should handle storing the user state (e.g. context/localStorage).
     if (typeof window !== 'undefined' && data.user) {
       localStorage.setItem('user', JSON.stringify(data.user));
+    }
+
+    // Manually set the HTTPOnly user cookie for Next.js middleware using the Server Action
+    if (data.user) {
+      await setAuthCookie(data.user);
     }
 
     return { success: true, user: data.user };
