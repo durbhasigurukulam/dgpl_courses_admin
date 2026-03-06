@@ -2,7 +2,7 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  output: 'standalone', // Enable standalone output for Docker
+  output: 'export',
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -10,19 +10,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'placehold.co',
-        port: '',
-        pathname: '/**',
-      },
-    ],
-  },
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '10mb',
-    },
+    unoptimized: true,
   },
 };
 
