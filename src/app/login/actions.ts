@@ -23,7 +23,7 @@ export async function loginUser(credentials: LoginCredentials) {
     const data = await res.json();
 
     if (!res.ok || !data.success) {
-      throw new Error(data.message || "Login failed");
+      return { success: false, message: data.message || "Login failed" };
     }
 
     // Browser handles the Set-Cookie for connect.sid automatically.
