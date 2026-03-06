@@ -3,6 +3,7 @@
 
 // import { cookies } from "next/headers"; // Not available in static export
 import { getApiUrl } from "@/lib/api-utils";
+import { clearAuthCookies } from "@/app/actions/auth";
 
 interface LoginCredentials {
   email: string;
@@ -52,6 +53,9 @@ export async function logoutUser() {
       document.cookie = "user=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
       document.cookie = "connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     }
+
+    // Use a Next.js Server Action to clear HttpOnly cookies on this domain
+    await clearAuthCookies();
 
     return { success: true };
   } catch (error: any) {
