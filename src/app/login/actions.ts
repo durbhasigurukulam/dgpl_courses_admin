@@ -43,18 +43,14 @@ export async function loginUser(credentials: LoginCredentials) {
 
 export async function logoutUser() {
   try {
-    // const cookieStore = await cookies();
-
-    // Clear both cookies
-    // cookieStore.delete("connect.sid");
-    // cookieStore.delete("user");
-
-    // In client-side, we might want to call a logout API endpoint to invalidate the session
-    // await fetch(getApiUrl('/api/auth/logout'), { method: 'POST', credentials: 'include' });
+    // In client-side, we call the logout API endpoint to invalidate the session
+    await fetch(getApiUrl('/api/auth/logout'), { method: 'POST', credentials: 'include' });
 
     if (typeof window !== 'undefined') {
       localStorage.removeItem('user');
-      // document.cookie = "connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"; // Can't clear HttpOnly cookie
+      // Clear cookies from domain (works for non-HttpOnly cookies)
+      document.cookie = "user=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     }
 
     return { success: true };
