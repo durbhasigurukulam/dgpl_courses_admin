@@ -5,8 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { SidebarWrapper } from "@/components/layout/sidebar-wrapper";
 
-import { Inter } from "next/font/google";
-import type { Metadata } from "next";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 

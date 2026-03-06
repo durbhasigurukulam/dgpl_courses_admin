@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  output: 'export', // Enable static export for Nginx
+  output: 'standalone', // Enable static export for Nginx
   typescript: {
     ignoreBuildErrors: true,
   },
